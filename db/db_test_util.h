@@ -303,6 +303,9 @@ class SpecialEnv : public EnvWrapper {
       Status Allocate(uint64_t offset, uint64_t len) override {
         return base_->Allocate(offset, len);
       }
+      size_t GetUniqueId(char* id, size_t max_size) const override {
+        return base_->GetUniqueId(id, max_size);
+      }
     };
     class ManifestFile : public WritableFile {
      public:
@@ -826,6 +829,7 @@ class CacheWrapper : public Cache {
 
   const char* Name() const override { return target_->Name(); }
 
+  using Cache::Insert;
   Status Insert(const Slice& key, void* value, size_t charge,
                 void (*deleter)(const Slice& key, void* value),
                 Handle** handle = nullptr,
@@ -833,12 +837,14 @@ class CacheWrapper : public Cache {
     return target_->Insert(key, value, charge, deleter, handle, priority);
   }
 
+  using Cache::Lookup;
   Handle* Lookup(const Slice& key, Statistics* stats = nullptr) override {
     return target_->Lookup(key, stats);
   }
 
   bool Ref(Handle* handle) override { return target_->Ref(handle); }
 
+  using Cache::Release;
   bool Release(Handle* handle, bool force_erase = false) override {
     return target_->Release(handle, force_erase);
   }
@@ -872,9 +878,20 @@ class CacheWrapper : public Cache {
     return target_->GetCharge(handle);
   }
 
+  DeleterFn GetDeleter(Handle* handle) const override {
+    return target_->GetDeleter(handle);
+  }
+
   void ApplyToAllCacheEntries(void (*callback)(void*, size_t),
                               bool thread_safe) override {
     target_->ApplyToAllCacheEntries(callback, thread_safe);
+  }
+
+  void ApplyToAllEntries(
+      const std::function<void(const Slice& key, void* value, size_t charge,
+                               DeleterFn deleter)>& callback,
+      const ApplyToAllEntriesOptions& opts) override {
+    target_->ApplyToAllEntries(callback, opts);
   }
 
   void EraseUnRefEntries() override { target_->EraseUnRefEntries(); }
